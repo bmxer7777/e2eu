@@ -1,0 +1,14 @@
+# Raw JEI export data (not needed by the website)
+bg/
+exports/
+fluids/
+items/
+jeiexporter.cfg
+
+# Uncompressed JSON (app uses .gz versions)
+processed/*.json
+
+# Build tools
+processor/
+*.py
+*.log

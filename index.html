@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RecipeTree — E2EU</title>
+  <style>
+    /* ── Minecraft GUI Palette ───────────────────── */
+    :root {
+      --bg:      #C6C6C6;   /* main panel gray */
+      --bg2:     #ABABAB;   /* slightly darker panel */
+      --bg3:     #909090;   /* header / deep panels */
+      --slot:    #8B8B8B;   /* slot fill */
+      --dark:    #373737;   /* border shadow edge */
+      --lite:    #FFFFFF;   /* border highlight edge */
+      --text:    #3F3F3F;
+      --text2:   #1F1F1F;
+      --dim:     #666666;
+      --gold:    #FCFC00;
+      --golddk:  #A0A000;
+      --ui: system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--ui);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: 13px;
+    }
+
+    /* ── Reusable bevel helpers ──────────────────── */
+    .mc-raised {
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+    }
+    .mc-inset {
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+    }
+
+    /* ── Header ─────────────────────────────────── */
+    #hdr {
+      background: var(--bg3);
+      border-bottom: 2px solid var(--dark);
+      padding: 0 14px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 20;
+    }
+    #hdr h1 {
+      font-size: 14px;
+      font-weight: bold;
+      color: #FFFFFF;
+      text-shadow: 1px 1px 0 #000;
+      letter-spacing: 1px;
+    }
+    .badge {
+      background: #606060;
+      color: #DFDFDF;
+      font-size: 10px;
+      padding: 2px 6px;
+      border: 1px solid var(--dark);
+    }
+    #hdr-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    #stats { font-size: 11px; color: #DFDFDF; }
+    .hdr-btn {
+      background: var(--bg);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+      color: var(--text);
+      padding: 3px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: var(--ui);
+    }
+    .hdr-btn:hover { background: #D6D6D6; }
+    .hdr-btn:active {
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+    }
+
+    /* ── Layout ──────────────────────────────────── */
+    #layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ─────────────────────────────────── */
+    #sidebar {
+      width: 240px;
+      min-width: 240px;
+      background: var(--bg);
+      border-right: 2px solid var(--dark);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    #srch-wrap {
+      padding: 7px;
+      border-bottom: 1px solid var(--dark);
+      flex-shrink: 0;
+    }
+    #srch {
+      width: 100%;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+      color: #FFFFFF;
+      padding: 5px 8px;
+      font-size: 13px;
+      font-family: var(--ui);
+      outline: none;
+    }
+    #srch::placeholder { color: #C0C0C0; }
+    #srch:disabled { opacity: .4; cursor: not-allowed; }
+    #sb-tabs {
+      display: flex;
+      border-bottom: 2px solid var(--dark);
+      flex-shrink: 0;
+    }
+    .sb-tab {
+      flex: 1;
+      padding: 6px 4px;
+      text-align: center;
+      font-size: 11px;
+      cursor: pointer;
+      color: var(--text);
+      background: var(--bg2);
+    }
+    .sb-tab:hover { background: var(--bg); }
+    .sb-tab.active { background: var(--bg); font-weight: bold; border-bottom: 2px solid var(--dark); }
+    #sb-panel { flex: 1; overflow-y: auto; }
+
+    /* Search results */
+    .sr-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 7px;
+      cursor: pointer;
+      border-bottom: 1px solid #B8B8B8;
+    }
+    .sr-item:hover { background: #D6D6D6; }
+    .sr-item.active { background: #B8D4FF; }
+    .sr-icon {
+      width: 32px; height: 32px;
+      flex-shrink: 0;
+      image-rendering: pixelated;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+    }
+    .sr-name { font-size: 12px; line-height: 1.4; color: var(--text2); }
+    .sr-mod  { font-size: 10px; color: var(--dim); }
+    .sr-bm   { font-size: 12px; margin-left: auto; flex-shrink: 0; }
+
+    /* Bookmarks */
+    #bm-grid { display: flex; flex-wrap: wrap; gap: 2px; padding: 7px; }
+    .bm-cell {
+      width: 36px; height: 36px;
+      cursor: pointer;
+      image-rendering: pixelated;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+      position: relative;
+    }
+    .bm-cell:hover { filter: brightness(1.15); }
+    .bm-hint { font-size: 10px; color: var(--dim); padding: 5px 7px; border-top: 1px solid var(--dark); }
+
+    /* ── Main ────────────────────────────────────── */
+    #main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; position: relative; }
+
+    /* Loading */
+    #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 14px; }
+    .ld-title { font-size: 16px; font-weight: bold; color: var(--text); animation: pulse 1.2s ease infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    #prog-out {
+      width: 280px; height: 12px;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+      overflow: hidden;
+    }
+    #prog-in { height: 100%; background: #55C855; width: 0%; transition: width .35s; }
+    #ld-status { font-size: 12px; color: var(--dim); }
+
+    /* Item grid */
+    #grid-view { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    #grid-header { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    #grid-title { font-size: 12px; font-weight: bold; color: var(--text); }
+    #grid-cells { display: flex; flex-wrap: wrap; gap: 2px; align-content: flex-start; }
+    .gc {
+      width: 34px; height: 34px;
+      cursor: pointer;
+      image-rendering: pixelated;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+      flex-shrink: 0;
+      position: relative;
+    }
+    .gc:hover { filter: brightness(1.2); }
+    .gc.bm-marked::after {
+      content: ''; position: absolute; top: 1px; right: 1px;
+      width: 5px; height: 5px; background: var(--gold); border-radius: 50%;
+    }
+    #grid-nav { display: flex; align-items: center; gap: 4px; padding: 4px 0; flex-shrink: 0; }
+    #grid-page { font-size: 11px; color: var(--dim); min-width: 80px; text-align: center; }
+
+    /* Nav buttons — Minecraft raised button style */
+    .nav-btn {
+      background: var(--bg);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+      color: var(--text);
+      min-width: 26px; height: 22px;
+      cursor: pointer;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      font-family: var(--ui);
+      white-space: nowrap;
+    }
+    .nav-btn:hover:not(:disabled) { background: #D6D6D6; }
+    .nav-btn:active:not(:disabled) {
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+    }
+    .nav-btn:disabled { opacity: .3; cursor: default; }
+
+    /* Item view */
+    #item-view { padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+    .iv-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--dark);
+    }
+    .iv-icon {
+      width: 48px; height: 48px;
+      flex-shrink: 0;
+      image-rendering: pixelated;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+    }
+    .iv-info h2 { font-size: 14px; font-weight: bold; color: var(--text2); margin-bottom: 2px; }
+    .iv-mod     { font-size: 11px; color: var(--dim); margin-bottom: 2px; }
+    .iv-id      { font-size: 10px; color: #999; font-family: monospace; }
+    .iv-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; align-items: center; }
+    .iv-btn {
+      background: var(--bg);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+      color: var(--text);
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: var(--ui);
+      white-space: nowrap;
+    }
+    .iv-btn:hover { background: #D6D6D6; }
+    .iv-btn.bm-active { background: #FFFFA0; }
+
+    /* Recipe section */
+    .rx-section { display: flex; flex-direction: column; gap: 0; }
+    .rx-sec-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      background: var(--bg2);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+    }
+    .rx-sec-title { font-size: 12px; font-weight: bold; color: var(--text2); }
+    .rx-sec-count { font-size: 11px; color: var(--dim); }
+
+    /* Left column + recipe area */
+    .rx-body {
+      display: flex;
+      background: var(--bg2);
+      border-left:   2px solid var(--dark);
+      border-right:  2px solid var(--lite);
+      border-bottom: 2px solid var(--lite);
+    }
+    .rx-machine-col {
+      width: 46px;
+      min-width: 46px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 4px 3px;
+      background: var(--bg2);
+      border-right: 1px solid var(--dark);
+      overflow-y: auto;
+      max-height: 550px;
+    }
+    .rm-entry {
+      width: 36px; height: 36px;
+      cursor: pointer;
+      image-rendering: pixelated;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .rm-entry:hover { filter: brightness(1.15); }
+    .rm-entry.active {
+      border-top:    2px solid var(--gold);
+      border-left:   2px solid var(--gold);
+      border-bottom: 2px solid var(--golddk);
+      border-right:  2px solid var(--golddk);
+      background: #4C4C00;
+    }
+
+    /* Recipe area (right of machine col) */
+    .rx-recipe-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px 8px;
+      min-width: 0;
+    }
+    /* Top nav bar */
+    .rx-topbar {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 5px;
+      background: var(--bg);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+    }
+    .rx-machine-label {
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--text2);
+      flex: 1;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rx-sep {
+      width: 1px; height: 16px;
+      background: var(--dark);
+      flex-shrink: 0;
+      margin: 0 2px;
+    }
+    .rx-page-label { font-size: 11px; color: var(--dim); min-width: 40px; text-align: center; white-space: nowrap; }
+
+    /* Recipe card */
+    .rx-card {
+      background: var(--bg);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+      padding: 8px;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .rx-gui { position: relative; image-rendering: pixelated; background-repeat: no-repeat; display: inline-block; }
+    .rx-gui.no-bg {
+      background: var(--bg2);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+    }
+    .rx-slot {
+      position: absolute;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: filter .1s;
+      overflow: hidden;
+    }
+    .rx-slot:hover { filter: brightness(1.3); }
+    .slot-icon { image-rendering: pixelated; background-repeat: no-repeat; pointer-events: none; flex-shrink: 0; }
+    .slot-amt {
+      position: absolute; bottom: 1px; right: 2px;
+      font-size: 11px; font-weight: bold;
+      color: #fff;
+      text-shadow: 1px 1px 0 #000,-1px 0 0 #000,0 -1px 0 #000;
+      pointer-events: none; line-height: 1; z-index: 2;
+    }
+
+    /* Notes */
+    .notes-section { display: flex; flex-direction: column; gap: 5px; }
+    .notes-label { font-size: 11px; font-weight: bold; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+    .notes-ta {
+      width: 100%; min-height: 60px; max-height: 160px;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+      color: #FFFFFF;
+      padding: 7px;
+      font-size: 12px;
+      font-family: var(--ui);
+      resize: vertical;
+      outline: none;
+    }
+    .notes-ta::placeholder { color: #C0C0C0; }
+
+    /* BOM panel */
+    #bom-panel {
+      background: var(--bg);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .bom-header { display: flex; align-items: center; gap: 10px; }
+    .bom-title  { font-size: 12px; font-weight: bold; color: var(--text); }
+    .bom-qty-wrap { display: flex; align-items: center; gap: 6px; }
+    .bom-qty {
+      width: 60px;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+      color: #FFFFFF;
+      padding: 4px 6px;
+      font-size: 12px;
+      font-family: var(--ui);
+      outline: none;
+      text-align: center;
+    }
+    .bom-go {
+      background: var(--bg);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+      color: var(--text);
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: var(--ui);
+    }
+    .bom-go:hover { background: #D6D6D6; }
+    .bom-results { display: flex; flex-direction: column; gap: 10px; }
+    .bom-sec-title { font-size: 11px; font-weight: bold; color: var(--dim); margin-bottom: 4px; text-transform: uppercase; }
+    .bom-row {
+      display: flex; align-items: center; gap: 7px;
+      padding: 3px 0;
+      border-bottom: 1px solid #B8B8B8;
+      cursor: pointer;
+    }
+    .bom-row:hover { background: #D6D6D6; padding: 3px 4px; }
+    .bom-icon {
+      width: 24px; height: 24px;
+      image-rendering: pixelated;
+      background: var(--slot);
+      border-top:  1px solid var(--dark);
+      border-left: 1px solid var(--dark);
+      border-bottom: 1px solid var(--lite);
+      border-right:  1px solid var(--lite);
+      flex-shrink: 0;
+    }
+    .bom-name      { font-size: 12px; flex: 1; color: var(--text); }
+    .bom-qty-label { font-size: 12px; color: var(--dim); min-width: 50px; text-align: right; }
+    .bom-via       { font-size: 10px; color: #999; min-width: 90px; text-align: right; }
+    .bom-empty     { color: #999; font-size: 12px; padding: 6px 0; }
+
+    /* Global notes modal */
+    #gnote-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; align-items: center; justify-content: center; }
+    #gnote-modal.open { display: flex; }
+    #gnote-box {
+      background: var(--bg);
+      border-top:    3px solid var(--lite);
+      border-left:   3px solid var(--lite);
+      border-bottom: 3px solid var(--dark);
+      border-right:  3px solid var(--dark);
+      padding: 16px;
+      width: 500px; max-width: 90vw;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .gnote-title { font-size: 13px; font-weight: bold; color: var(--text); }
+    #gnote-ta {
+      width: 100%; height: 280px;
+      background: var(--slot);
+      border-top:    2px solid var(--dark);
+      border-left:   2px solid var(--dark);
+      border-bottom: 2px solid var(--lite);
+      border-right:  2px solid var(--lite);
+      color: #FFFFFF;
+      padding: 9px;
+      font-size: 12px;
+      font-family: var(--ui);
+      resize: vertical;
+      outline: none;
+    }
+    .gnote-close {
+      background: var(--bg);
+      border-top:    2px solid var(--lite);
+      border-left:   2px solid var(--lite);
+      border-bottom: 2px solid var(--dark);
+      border-right:  2px solid var(--dark);
+      color: var(--text);
+      padding: 5px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: var(--ui);
+      align-self: flex-end;
+    }
+    .gnote-close:hover { background: #D6D6D6; }
+
+    /* Keyboard hint bar */
+    #kbd-hint {
+      position: fixed; bottom: 0; left: 240px; right: 0;
+      background: var(--bg2);
+      border-top: 1px solid var(--dark);
+      padding: 3px 12px;
+      font-size: 10px;
+      color: var(--dim);
+      display: flex; gap: 14px;
+      z-index: 15;
+    }
+    .kbd {
+      background: var(--bg);
+      border-top:    1px solid var(--lite);
+      border-left:   1px solid var(--lite);
+      border-bottom: 1px solid var(--dark);
+      border-right:  1px solid var(--dark);
+      padding: 1px 5px;
+      font-family: monospace;
+      font-size: 10px;
+      color: var(--text);
+      margin-right: 2px;
+    }
+
+    /* Tooltip — keep the classic Minecraft purple-border tooltip */
+    #tip {
+      position: fixed;
+      background: #100010;
+      border: 1px solid #7b00c8;
+      color: #FFFFFF;
+      font-size: 12px;
+      padding: 5px 10px;
+      pointer-events: none;
+      z-index: 9999;
+      max-width: 300px;
+      display: none;
+      box-shadow: 2px 2px 8px rgba(0,0,0,.8);
+      line-height: 1.5;
+    }
+    .tip-name { color: #fff; font-weight: bold; margin-bottom: 1px; }
+    .tip-id   { color: #9898ff; font-size: 10px; font-family: monospace; }
+    .tip-meta { color: #aaa; font-size: 10px; margin-top: 2px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--slot); border: 1px solid var(--dark); }
+    ::-webkit-scrollbar-thumb:hover { background: #707070; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div id="hdr">
+  <h1>RecipeTree</h1>
+  <span class="badge">E2EU</span>
+  <div id="hdr-right">
+    <span id="stats"></span>
+    <button class="hdr-btn" id="btn-notes">📝 Notes</button>
+    <button class="hdr-btn" id="btn-grid">⊞ Browse</button>
+  </div>
+</div>
+
+<div id="layout">
+  <div id="sidebar">
+    <div id="srch-wrap">
+      <input id="srch" type="text" placeholder="🔍 Search items…" disabled autocomplete="off" spellcheck="false">
+    </div>
+    <div id="sb-tabs">
+      <div class="sb-tab active" data-tab="results">Results</div>
+      <div class="sb-tab" data-tab="bookmarks">Bookmarks ⭐</div>
+    </div>
+    <div id="sb-panel">
+      <div id="tab-results"></div>
+      <div id="tab-bookmarks" class="hidden">
+        <div id="bm-grid"></div>
+        <div class="bm-hint"><span class="kbd">A</span> while hovering any item to bookmark</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="main">
+    <!-- Loading -->
+    <div id="loading">
+      <div class="ld-title">LOADING</div>
+      <div id="prog-out"><div id="prog-in"></div></div>
+      <div id="ld-status">Initializing…</div>
+    </div>
+
+    <!-- Item grid -->
+    <div id="grid-view" class="hidden">
+      <div id="grid-header">
+        <span id="grid-title">ALL ITEMS</span>
+        <span id="grid-count" style="font-size:11px;color:var(--dim)"></span>
+        <div id="grid-nav" style="margin-left:auto">
+          <button class="nav-btn" id="grid-first">⏮</button>
+          <button class="nav-btn" id="grid-prev">◄</button>
+          <span id="grid-page"></span>
+          <button class="nav-btn" id="grid-next">►</button>
+          <button class="nav-btn" id="grid-last">⏭</button>
+        </div>
+      </div>
+      <div id="grid-cells"></div>
+    </div>
+
+    <!-- Item view -->
+    <div id="item-view" class="hidden"></div>
+  </div>
+</div>
+
+<!-- Keyboard hint -->
+<div id="kbd-hint">
+  <span><span class="kbd">R</span> Recipes (hover item)</span>
+  <span><span class="kbd">U</span> Uses (hover item)</span>
+  <span><span class="kbd">A</span> Bookmark (hover item)</span>
+  <span><span class="kbd">Esc</span> Back to grid</span>
+</div>
+
+<!-- Global notes modal -->
+<div id="gnote-modal">
+  <div id="gnote-box">
+    <div class="gnote-title">📝 Scratch Pad</div>
+    <textarea id="gnote-ta" placeholder="Notes, plans, reminders…"></textarea>
+    <button class="gnote-close" id="gnote-close">Close</button>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="tip">
+  <div class="tip-name" id="tip-name"></div>
+  <div class="tip-id"   id="tip-id"></div>
+  <div class="tip-meta" id="tip-meta"></div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+const DATA     = 'processed';
+const ICON_PX  = 32;
+const ATLAS_PX = 4096;
+const CYCLE_MS = 1500;
+const CELL_SZ  = 34;
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let itemsById = {}, itemsList = [], graphData = {}, iconsData = {}, categoriesById = {}, recipesById = {};
+let dedupedList = [], dedupGroups = {}, itemsByNameLower = {};   // dedup map + name lookup
+let currentItemId = null, hoveredItemId = null;
+let cycleTimer = null, gridPage = 0, gridPerPage = 80;
+let bookmarks = [], notes = {}, globalNote = '';
+let activeTab = 'results';
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+function saveLocal() {
+  try {
+    localStorage.setItem('rt_bookmarks', JSON.stringify(bookmarks));
+    localStorage.setItem('rt_notes', JSON.stringify(notes));
+    localStorage.setItem('rt_gnote', globalNote);
+  } catch(e) {}
+}
+function loadLocal() {
+  try {
+    bookmarks  = JSON.parse(localStorage.getItem('rt_bookmarks') || '[]');
+    notes      = JSON.parse(localStorage.getItem('rt_notes')     || '{}');
+    globalNote = localStorage.getItem('rt_gnote') || '';
+  } catch(e) { bookmarks = []; notes = {}; globalNote = ''; }
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function cleanName(s) {
+  return String(s).replace(/§[0-9a-fklmnorA-FKLMNOR]/g,'').trim();
+}
+function fmtAmt(n, isFluid) {
+  if (isFluid) return n >= 1000 ? (n%1000===0?`${n/1000}B`:`${(n/1000).toFixed(1)}B`) : n+'mB';
+  return n >= 1000 ? (n%1000===0?`${n/1000}k`:`${(n/1000).toFixed(1)}k`) : String(n);
+}
+
+// ─── Progress ─────────────────────────────────────────────────────────────────
+function setProgress(pct, msg) {
+  document.getElementById('prog-in').style.width = pct + '%';
+  document.getElementById('ld-status').textContent = msg;
+}
+
+// ─── Deduplication ────────────────────────────────────────────────────────────
+// Items with the same display name (different fluid/variant) are collapsed to one
+// canonical entry. Recipes from all group members are shown together.
+function buildDedupMap() {
+  const nameMap = {};
+  for (const item of itemsList) {
+    const k = item.name_lower;
+    if (!nameMap[k]) nameMap[k] = [];
+    nameMap[k].push(item);
+  }
+  dedupedList = [];
+  dedupGroups = {};
+  for (const items of Object.values(nameMap)) {
+    // Canonical = shortest ID (least likely to be a fluid-filled variant)
+    items.sort((a, b) => a.id.length - b.id.length || a.id.localeCompare(b.id));
+    const canonical = items[0];
+    dedupedList.push(canonical);
+    dedupGroups[canonical.id] = items.map(i => i.id);
+  }
+  dedupedList.sort((a, b) => a.name_lower.localeCompare(b.name_lower));
+
+  // Build name→item lookup for machine icon resolution
+  itemsByNameLower = {};
+  for (const item of itemsList) {
+    if (!itemsByNameLower[item.name_lower]) itemsByNameLower[item.name_lower] = item;
+  }
+}
+
+// Collect recipe IDs from all items in a canonical item's dedup group
+function getGroupRecipes(section, canonicalId) {
+  const allIds = dedupGroups[canonicalId] || [canonicalId];
+  const seen = new Set();
+  const result = [];
+  for (const id of allIds) {
+    const g = graphData[id] || {};
+    const rids = section === 'produced_by' ? (g.produced_by || []) : (g.used_in || []);
+    for (const rid of rids) {
+      if (!seen.has(rid)) { seen.add(rid); result.push(rid); }
+    }
+  }
+  return result;
+}
+
+// ─── Machine priority sort ───────────────────────────────────────────────────
+function machinePriority(name) {
+  const n = name.toLowerCase();
+  if (n.includes('crafting'))    return 0;
+  if (n.includes('furnace') || n.includes('smelting')) return 1;
+  if (n.includes('alloy'))       return 2;
+  if (n.includes('pulverizer') || n.includes('macerat') || n.includes('grinder')) return 3;
+  return 99;
+}
+
+// ─── Machine icon lookup ─────────────────────────────────────────────────────
+// Find the best matching item icon for a machine name, for use in the left column.
+// Tries: exact name match → starts-with → contains (longest match wins).
+function findMachineIcon(machineName) {
+  const lower = machineName.toLowerCase();
+  // 1. Exact match
+  if (itemsByNameLower[lower]) return itemsByNameLower[lower];
+  // 2. Starts-with (prefer longer matches)
+  let best = null, bestLen = 0;
+  for (const [name, item] of Object.entries(itemsByNameLower)) {
+    if (lower.startsWith(name) || name.startsWith(lower)) {
+      if (name.length > bestLen) { best = item; bestLen = name.length; }
+    }
+  }
+  if (best) return best;
+  // 3. Contains (prefer longer matches)
+  bestLen = 0; best = null;
+  for (const [name, item] of Object.entries(itemsByNameLower)) {
+    if (lower.includes(name) || name.includes(lower)) {
+      if (name.length > bestLen) { best = item; bestLen = name.length; }
+    }
+  }
+  return best;
+}
+
+// ─── Data loading ─────────────────────────────────────────────────────────────
+async function fetchJSON(url) {
+  let res = await fetch(url);
+  if (!res.ok && url.endsWith('.gz')) res = await fetch(url.replace(/\.gz$/,''));
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  return res.json();
+}
+
+async function loadData() {
+  try {
+    setProgress(5,  'Loading item names…');
+    const raw = await fetchJSON(`${DATA}/items.json.gz`);
+    for (const item of raw) {
+      item.name       = cleanName(item.name || item.id);
+      item.name_lower = item.name.toLowerCase();
+      itemsById[item.id] = item;
+    }
+    itemsList = raw.slice().sort((a,b) => a.name_lower.localeCompare(b.name_lower));
+
+    setProgress(18, 'Deduplicating items…');
+    buildDedupMap();
+
+    setProgress(25, 'Loading icon map…');
+    iconsData = await fetchJSON(`${DATA}/icons.json.gz`);
+
+    setProgress(38, 'Loading categories…');
+    const cats = await fetchJSON(`${DATA}/categories.json.gz`);
+    for (const c of cats) categoriesById[c.uid] = c;
+
+    setProgress(50, 'Loading recipe graph…');
+    graphData = await fetchJSON(`${DATA}/graph.json.gz`);
+
+    setProgress(65, 'Loading recipes…');
+    const recs = await fetchJSON(`${DATA}/recipes.json.gz`);
+    for (const r of recs) recipesById[r.id] = r;
+
+    setProgress(100, 'Ready!');
+    document.getElementById('stats').textContent =
+      `${dedupedList.length.toLocaleString()} items · ${recs.length.toLocaleString()} recipes`;
+
+    loadLocal();
+    setTimeout(() => {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('srch').disabled = false;
+      document.getElementById('srch').focus();
+      showGrid();
+      renderBookmarkPanel();
+      document.getElementById('gnote-ta').value = globalNote;
+    }, 250);
+  } catch(err) {
+    document.getElementById('ld-status').textContent = '⚠ ' + err.message;
+    document.getElementById('ld-status').style.color = '#C85555';
+    console.error(err);
+  }
+}
+
+// ─── Icon helpers ─────────────────────────────────────────────────────────────
+function applyIcon(el, icon_key, size) {
+  const info = iconsData[icon_key];
+  el.style.width = size+'px'; el.style.height = size+'px';
+  if (!info) { el.style.background = '#6A6A6A'; return; }
+  const sc = size / ICON_PX;
+  el.style.backgroundImage    = `url(${DATA}/icons_${info.sheet}.png)`;
+  el.style.backgroundPosition = `${-info.x*sc}px ${-info.y*sc}px`;
+  el.style.backgroundSize     = `${ATLAS_PX*sc}px ${ATLAS_PX*sc}px`;
+}
+function makeIconEl(item_id, size) {
+  const el = document.createElement('div');
+  el.className = 'slot-icon';
+  const item = itemsById[item_id];
+  if (item) applyIcon(el, item.icon_key, size);
+  else { el.style.width=size+'px'; el.style.height=size+'px'; el.style.background='#6A6A6A'; }
+  return el;
+}
+
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+const tipEl   = document.getElementById('tip');
+const tipName = document.getElementById('tip-name');
+const tipId   = document.getElementById('tip-id');
+const tipMeta = document.getElementById('tip-meta');
+function showTip(e, id, meta) {
+  const item = itemsById[id];
+  tipName.textContent = item ? item.name : id;
+  tipId.textContent   = id;
+  tipMeta.textContent = meta || '';
+  tipEl.style.display = 'block';
+  moveTip(e);
+}
+function moveTip(e) {
+  let x=e.clientX+14, y=e.clientY+14;
+  if(x+220>window.innerWidth)  x=e.clientX-224;
+  if(y+70>window.innerHeight)  y=e.clientY-74;
+  tipEl.style.left=x+'px'; tipEl.style.top=y+'px';
+}
+function hideTip() { tipEl.style.display='none'; hoveredItemId=null; }
+
+// ─── Dynamic scale ────────────────────────────────────────────────────────────
+function calcScale(bgW, bgH) {
+  const mainEl = document.getElementById('main');
+  const avW = (mainEl?.clientWidth || 900) - 120;
+  const avH = window.innerHeight * 0.55;
+  const sw = Math.floor(avW / (bgW || 150));
+  const sh = Math.floor(avH / (bgH || 80));
+  return Math.max(2, Math.min(5, sw, sh));
+}
+
+// ─── Token search ─────────────────────────────────────────────────────────────
+function tokenSearch(raw) {
+  const tokens = raw.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [];
+  const matches = [];
+  for (const item of dedupedList) {
+    if (tokens.every(t => item.name_lower.includes(t))) {
+      matches.push(item);
+      if (matches.length >= 80) break;
+    }
+  }
+  return matches;
+}
+
+let srchTimer = null;
+function doSearch(q) {
+  if (!q.trim()) {
+    showTab(activeTab === 'results' ? 'bookmarks' : activeTab);
+    document.getElementById('tab-results').innerHTML = '';
+    return;
+  }
+  showTab('results');
+  const matches = tokenSearch(q);
+  const panel = document.getElementById('tab-results');
+  panel.innerHTML = '';
+  if (!matches.length) {
+    panel.innerHTML = '<div style="padding:12px;color:var(--dim);font-size:12px">No results</div>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const item of matches) {
+    const el = document.createElement('div');
+    el.className = 'sr-item' + (item.id===currentItemId?' active':'');
+    const ico = document.createElement('div'); ico.className='sr-icon';
+    applyIcon(ico, item.icon_key, 32);
+    const txt = document.createElement('div');
+    txt.innerHTML=`<div class="sr-name">${esc(item.name)}</div><div class="sr-mod">${esc(item.mod)}</div>`;
+    el.appendChild(ico); el.appendChild(txt);
+    if (bookmarks.includes(item.id)) {
+      const star = document.createElement('span'); star.className='sr-bm'; star.textContent='⭐';
+      el.appendChild(star);
+    }
+    attachItemHover(el, item.id);
+    el.addEventListener('click', () => selectItem(item.id));
+    frag.appendChild(el);
+  }
+  panel.appendChild(frag);
+}
+
+// ─── Sidebar tabs ─────────────────────────────────────────────────────────────
+function showTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.sb-tab').forEach(t => t.classList.toggle('active', t.dataset.tab===name));
+  document.getElementById('tab-results').classList.toggle('hidden', name!=='results');
+  document.getElementById('tab-bookmarks').classList.toggle('hidden', name!=='bookmarks');
+}
+document.querySelectorAll('.sb-tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+
+// ─── Grid view ────────────────────────────────────────────────────────────────
+function calcGridPerPage() {
+  const mainEl = document.getElementById('main');
+  const w = (mainEl?.clientWidth||900) - 16;
+  const h = window.innerHeight - 44 - 50;
+  const cols = Math.max(5, Math.floor(w / (CELL_SZ+2)));
+  const rows = Math.max(4, Math.floor(h / (CELL_SZ+2)));
+  return cols * rows;
+}
+
+function showGrid() {
+  document.getElementById('grid-view').classList.remove('hidden');
+  document.getElementById('item-view').classList.add('hidden');
+  renderGridPage(gridPage);
+}
+
+function renderGridPage(p) {
+  gridPerPage = calcGridPerPage();
+  const total   = dedupedList.length;
+  const maxPage = Math.ceil(total / gridPerPage) - 1;
+  gridPage = Math.max(0, Math.min(p, maxPage));
+
+  const cells = document.getElementById('grid-cells');
+  cells.innerHTML = '';
+  document.getElementById('grid-count').textContent = `${total.toLocaleString()} items`;
+  document.getElementById('grid-page').textContent  = `${gridPage+1} / ${Math.ceil(total/gridPerPage)}`;
+  document.getElementById('grid-first').disabled = gridPage===0;
+  document.getElementById('grid-prev').disabled  = gridPage===0;
+  document.getElementById('grid-next').disabled  = gridPage===maxPage;
+  document.getElementById('grid-last').disabled  = gridPage===maxPage;
+
+  const slice = dedupedList.slice(gridPage*gridPerPage, (gridPage+1)*gridPerPage);
+  const frag = document.createDocumentFragment();
+  for (const item of slice) {
+    const cell = document.createElement('div');
+    cell.className = 'gc' + (bookmarks.includes(item.id) ? ' bm-marked' : '');
+    applyIcon(cell, item.icon_key, CELL_SZ);
+    attachItemHover(cell, item.id);
+    cell.addEventListener('click', () => selectItem(item.id));
+    frag.appendChild(cell);
+  }
+  cells.appendChild(frag);
+}
+
+document.getElementById('grid-first').addEventListener('click', () => renderGridPage(0));
+document.getElementById('grid-prev').addEventListener('click',  () => renderGridPage(gridPage-1));
+document.getElementById('grid-next').addEventListener('click',  () => renderGridPage(gridPage+1));
+document.getElementById('grid-last').addEventListener('click',  () => renderGridPage(Infinity));
+document.getElementById('btn-grid').addEventListener('click', () => {
+  currentItemId = null;
+  showGrid();
+  doSearch('');
+  document.getElementById('srch').value = '';
+});
+
+// ─── Bookmarks ────────────────────────────────────────────────────────────────
+function toggleBookmark(id) {
+  if (!id || !itemsById[id]) return;
+  const idx = bookmarks.indexOf(id);
+  if (idx >= 0) bookmarks.splice(idx,1); else bookmarks.unshift(id);
+  saveLocal();
+  renderBookmarkPanel();
+  doSearch(document.getElementById('srch').value);
+  if (currentItemId) updateBmButton();
+  if (!document.getElementById('grid-view').classList.contains('hidden')) renderGridPage(gridPage);
+}
+function isBookmarked(id) { return bookmarks.includes(id); }
+function updateBmButton() {
+  const btn = document.getElementById('bm-toggle');
+  if (!btn || !currentItemId) return;
+  const bm = isBookmarked(currentItemId);
+  btn.textContent = bm ? '⭐ Bookmarked' : '☆ Bookmark';
+  btn.classList.toggle('bm-active', bm);
+}
+function renderBookmarkPanel() {
+  const grid = document.getElementById('bm-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const existing = document.getElementById('bm-empty');
+  if (existing) existing.remove();
+  if (bookmarks.length === 0) {
+    const d = document.createElement('div');
+    d.id='bm-empty';
+    d.style.cssText='padding:16px;color:var(--dim);font-size:12px;text-align:center';
+    d.textContent='No bookmarks yet';
+    grid.parentNode.insertBefore(d, grid.nextSibling);
+    return;
+  }
+  for (const id of bookmarks) {
+    const item = itemsById[id]; if (!item) continue;
+    const cell = document.createElement('div'); cell.className='bm-cell';
+    applyIcon(cell, item.icon_key, CELL_SZ);
+    attachItemHover(cell, id);
+    cell.addEventListener('click', () => selectItem(id));
+    grid.appendChild(cell);
+  }
+}
+
+// ─── Hover tracking ───────────────────────────────────────────────────────────
+function attachItemHover(el, id, meta) {
+  el.addEventListener('mouseenter', e => { hoveredItemId = id; showTip(e, id, meta); });
+  el.addEventListener('mousemove',  moveTip);
+  el.addEventListener('mouseleave', hideTip);
+}
+
+// ─── Recipe rendering ─────────────────────────────────────────────────────────
+function renderRecipeCard(recipe) {
+  const cat = categoriesById[recipe.category] || {};
+  const bg  = cat.bg || {};
+  const sc  = calcScale(bg.w || 150, bg.h || 80);
+  const guiW = (bg.w||150) * sc;
+  const guiH = (bg.h||80)  * sc;
+
+  const card = document.createElement('div');
+  card.className = 'rx-card';
+
+  const gui = document.createElement('div');
+  gui.className = 'rx-gui';
+  gui.style.width  = guiW+'px';
+  gui.style.height = guiH+'px';
+  if (bg.tex) {
+    gui.style.backgroundImage = `url(${DATA}/bg/${bg.tex}.png)`;
+    gui.style.backgroundSize  = `${guiW}px ${guiH}px`;
+  } else gui.classList.add('no-bg');
+
+  const allSlots = [
+    ...recipe.inputs.map(s=>({...s,out:false})),
+    ...recipe.outputs.map(s=>({...s,out:true}))
+  ];
+
+  for (const slot of allSlots) {
+    const ids = slot.items.length ? slot.items : slot.fluids;
+    if (!ids.length) continue;
+    const isFluid = slot.fluids.length > 0;
+    const sw = slot.w*sc, sh = slot.h*sc;
+    const iSz = Math.min(sw-2, sh-2, ICON_PX);
+
+    const slotEl = document.createElement('div');
+    slotEl.className = 'rx-slot';
+    slotEl.style.left   = (slot.x*sc)+'px';
+    slotEl.style.top    = (slot.y*sc)+'px';
+    slotEl.style.width  = sw+'px';
+    slotEl.style.height = sh+'px';
+
+    const ico = makeIconEl(ids[0], iSz);
+    slotEl.appendChild(ico);
+
+    if (ids.length > 1) { slotEl.dataset.idsJson=JSON.stringify(ids); slotEl.dataset.iSz=iSz; slotEl.dataset.ci='0'; }
+
+    const amt = slot.amount;
+    if (amt > 1 || isFluid) {
+      const a = document.createElement('span'); a.className='slot-amt';
+      a.textContent = fmtAmt(amt, isFluid);
+      slotEl.appendChild(a);
+    }
+
+    const clickId = ids[0];
+    slotEl.addEventListener('click', e => { e.stopPropagation(); selectItem(clickId); });
+    const meta = isFluid?'fluid':(ids.length>1?`${ids.length} alternatives`:'');
+    attachItemHover(slotEl, clickId, meta);
+    gui.appendChild(slotEl);
+  }
+  card.appendChild(gui);
+  return card;
+}
+
+// ─── OreDict cycling ──────────────────────────────────────────────────────────
+function startCycle(container) {
+  stopCycle();
+  cycleTimer = setInterval(() => {
+    container.querySelectorAll('.rx-slot[data-ids-json]').forEach(s => {
+      const ids = JSON.parse(s.dataset.idsJson);
+      const idx = (parseInt(s.dataset.ci)+1) % ids.length;
+      s.dataset.ci = idx;
+      const ico = s.querySelector('.slot-icon');
+      const item = itemsById[ids[idx]];
+      if (ico && item) applyIcon(ico, item.icon_key, parseInt(s.dataset.iSz));
+      s.onmouseenter = e => { hoveredItemId=ids[idx]; showTip(e,ids[idx],`${ids.length} alternatives`); };
+    });
+  }, CYCLE_MS);
+}
+function stopCycle() { if(cycleTimer){clearInterval(cycleTimer);cycleTimer=null;} }
+
+// ─── Item view ────────────────────────────────────────────────────────────────
+function selectItem(id, focusSection) {
+  // If this ID isn't the canonical for its group, find the canonical
+  const canonical = findCanonical(id) || id;
+  if (!itemsById[canonical]) return;
+  currentItemId = canonical;
+  document.getElementById('grid-view').classList.add('hidden');
+  document.getElementById('item-view').classList.remove('hidden');
+  renderItemView(canonical, focusSection);
+  doSearch(document.getElementById('srch').value);
+  document.getElementById('main').scrollTop = 0;
+}
+
+function findCanonical(id) {
+  // Check if id is itself a canonical
+  if (dedupGroups[id]) return id;
+  // Otherwise find which group contains it
+  for (const [canon, ids] of Object.entries(dedupGroups)) {
+    if (ids.includes(id)) return canon;
+  }
+  return id;
+}
+
+function renderItemView(itemId, focusSection) {
+  const item  = itemsById[itemId]; if (!item) return;
+  // Gather recipe IDs from all items in the dedup group
+  const pb = getGroupRecipes('produced_by', itemId);
+  const ui = getGroupRecipes('used_in',     itemId);
+
+  stopCycle();
+  const view = document.getElementById('item-view');
+  view.innerHTML = '';
+
+  // ── Header ──────────────────────────────────────
+  const hdr = document.createElement('div'); hdr.className='iv-header';
+  const bigIco = document.createElement('div'); bigIco.className='iv-icon';
+  applyIcon(bigIco, item.icon_key, 48); hdr.appendChild(bigIco);
+
+  const info = document.createElement('div'); info.className='iv-info';
+  const groupSize = (dedupGroups[itemId]||[itemId]).length;
+  const variantNote = groupSize > 1 ? `<div class="iv-id" style="color:var(--dim)">${groupSize} variants merged</div>` : '';
+  info.innerHTML=`<h2>${esc(item.name)}</h2><div class="iv-mod">${esc(item.mod)}</div><div class="iv-id">${esc(itemId)}</div>${variantNote}`;
+  hdr.appendChild(info);
+
+  const acts = document.createElement('div'); acts.className='iv-actions';
+  const bmBtn = document.createElement('button');
+  bmBtn.id='bm-toggle'; bmBtn.className='iv-btn';
+  bmBtn.textContent = isBookmarked(itemId) ? '⭐ Bookmarked' : '☆ Bookmark';
+  if (isBookmarked(itemId)) bmBtn.classList.add('bm-active');
+  bmBtn.addEventListener('click', () => { toggleBookmark(itemId); updateBmButton(); });
+  acts.appendChild(bmBtn);
+
+  const bomBtn = document.createElement('button');
+  bomBtn.className='iv-btn'; bomBtn.textContent='🧮 BOM';
+  bomBtn.addEventListener('click', () => {
+    const panel = document.getElementById('bom-panel');
+    if (panel) panel.classList.toggle('hidden');
+  });
+  acts.appendChild(bomBtn);
+  hdr.appendChild(acts);
+  view.appendChild(hdr);
+
+  // ── Recipe sections ──────────────────────────────
+  buildSection('PRODUCED BY', pb, 'sec-pb');
+  buildSection('USED IN',     ui, 'sec-ui');
+
+  if (!pb.length && !ui.length) {
+    const none = document.createElement('div');
+    none.style.cssText='color:var(--dim);padding:20px';
+    none.textContent='No recipes found for this item.';
+    view.appendChild(none);
+  }
+
+  // ── Notes ────────────────────────────────────────
+  const notesSec = document.createElement('div'); notesSec.className='notes-section';
+  const notesLabel = document.createElement('div'); notesLabel.className='notes-label'; notesLabel.textContent='NOTES';
+  const ta = document.createElement('textarea'); ta.className='notes-ta';
+  ta.placeholder='Personal notes for this item…';
+  ta.value = notes[itemId] || '';
+  ta.addEventListener('input', () => { notes[itemId] = ta.value; saveLocal(); });
+  notesSec.appendChild(notesLabel); notesSec.appendChild(ta);
+  view.appendChild(notesSec);
+
+  // ── BOM panel ────────────────────────────────────
+  const bomPanel = document.createElement('div'); bomPanel.id='bom-panel'; bomPanel.className='hidden';
+  const bomHdr = document.createElement('div'); bomHdr.className='bom-header';
+  const bomTitle = document.createElement('span'); bomTitle.className='bom-title'; bomTitle.textContent='BILL OF MATERIALS';
+  const qtyWrap = document.createElement('div'); qtyWrap.className='bom-qty-wrap';
+  const qtyInput = document.createElement('input'); qtyInput.type='number'; qtyInput.className='bom-qty'; qtyInput.value='1'; qtyInput.min='1';
+  const goBtn = document.createElement('button'); goBtn.className='bom-go'; goBtn.textContent='Calculate';
+  qtyWrap.appendChild(document.createTextNode('×'));
+  qtyWrap.appendChild(qtyInput); qtyWrap.appendChild(goBtn);
+  bomHdr.appendChild(bomTitle); bomHdr.appendChild(qtyWrap);
+  bomPanel.appendChild(bomHdr);
+
+  const bomResults = document.createElement('div'); bomResults.className='bom-results';
+  bomPanel.appendChild(bomResults);
+
+  goBtn.addEventListener('click', () => {
+    const qty = parseInt(qtyInput.value)||1;
+    const result = computeBOM(itemId, qty);
+    renderBOMResults(bomResults, result);
+  });
+
+  view.appendChild(bomPanel);
+
+  if (focusSection) {
+    setTimeout(() => {
+      const el = document.getElementById(focusSection==='produced_by'?'sec-pb':'sec-ui');
+      if (el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    }, 50);
+  }
+}
+
+// ─── buildSection: left-column machine list + top-bar nav ────────────────────
+function buildSection(sectionTitle, recipeIds, secId) {
+  if (!recipeIds.length) return;
+
+  // Group by machine name, sort by priority
+  const groups = {};
+  for (const rid of recipeIds) {
+    const r = recipesById[rid]; if (!r) continue;
+    if (!groups[r.machine]) groups[r.machine] = [];
+    groups[r.machine].push(rid);
+  }
+  const machineNames = Object.keys(groups).sort((a,b) =>
+    machinePriority(a) - machinePriority(b) || a.localeCompare(b)
+  );
+  if (!machineNames.length) return;
+
+  const view = document.getElementById('item-view');
+
+  const sec = document.createElement('div');
+  sec.className = 'rx-section';
+  sec.id = secId;
+
+  // Section header bar
+  const hdr = document.createElement('div');
+  hdr.className = 'rx-sec-header';
+  hdr.innerHTML = `<span class="rx-sec-title">${esc(sectionTitle)}</span><span class="rx-sec-count">(${recipeIds.length} recipe${recipeIds.length!==1?'s':''})</span>`;
+  sec.appendChild(hdr);
+
+  // Body: [machine col] [recipe area]
+  const body = document.createElement('div');
+  body.className = 'rx-body';
+  sec.appendChild(body);
+
+  // Left machine column — only show if >1 machine
+  const machCol = document.createElement('div');
+  machCol.className = 'rx-machine-col';
+  if (machineNames.length > 1) {
+    body.appendChild(machCol);
+  }
+
+  // Recipe area
+  const recipeArea = document.createElement('div');
+  recipeArea.className = 'rx-recipe-area';
+  body.appendChild(recipeArea);
+
+  // Top bar: [machineName] | [◄ page ►]
+  const topbar = document.createElement('div');
+  topbar.className = 'rx-topbar';
+  const machLabel  = document.createElement('span'); machLabel.className = 'rx-machine-label';
+  const prevRecBtn = makeNavBtn('◄');
+  const pageLabel  = document.createElement('span'); pageLabel.className = 'rx-page-label';
+  const nextRecBtn = makeNavBtn('►');
+  topbar.appendChild(machLabel);
+  if (machineNames.length > 1) {
+    // Also add left/right machine nav in top bar
+    const sep = document.createElement('span'); sep.className = 'rx-sep';
+    topbar.appendChild(sep);
+  }
+  topbar.appendChild(prevRecBtn);
+  topbar.appendChild(pageLabel);
+  topbar.appendChild(nextRecBtn);
+  recipeArea.appendChild(topbar);
+
+  const display = document.createElement('div');
+  recipeArea.appendChild(display);
+
+  let activeMachine = machineNames[0];
+  let page = 0;
+
+  function showPage(p) {
+    const rids = groups[activeMachine] || [];
+    page = Math.max(0, Math.min(p, rids.length - 1));
+    display.innerHTML = '';
+    const recipe = recipesById[rids[page]];
+    if (recipe) { display.appendChild(renderRecipeCard(recipe)); startCycle(display); }
+    prevRecBtn.disabled = page === 0;
+    nextRecBtn.disabled = page >= rids.length - 1;
+    pageLabel.textContent = rids.length > 1 ? `${page+1} / ${rids.length}` : '';
+    machLabel.textContent = activeMachine + (rids.length > 1 ? '' : '');
+  }
+
+  function selectMachine(name) {
+    activeMachine = name;
+    page = 0;
+    machCol.querySelectorAll('.rm-entry').forEach(e =>
+      e.classList.toggle('active', e.dataset.machine === name)
+    );
+    machLabel.textContent = name;
+    showPage(0);
+  }
+
+  prevRecBtn.addEventListener('click', () => showPage(page - 1));
+  nextRecBtn.addEventListener('click', () => showPage(page + 1));
+
+  // Build machine column entries
+  for (const name of machineNames) {
+    const entry = document.createElement('div');
+    entry.className = 'rm-entry' + (name === machineNames[0] ? ' active' : '');
+    entry.dataset.machine = name;
+
+    // Get the category bg texture for this machine
+    const sampleRec = recipesById[groups[name][0]];
+    const cat = sampleRec ? (categoriesById[sampleRec.category] || {}) : {};
+    const bg  = cat.bg || {};
+
+    const machItem = findMachineIcon(name);
+    if (machItem) {
+      const ico = makeIconEl(machItem.id, 32);
+      entry.appendChild(ico);
+    } else if (bg.tex) {
+      // Fallback: corner-crop of the GUI texture
+      const ico = document.createElement('div');
+      ico.style.cssText = `width:32px;height:32px;background:url(${DATA}/bg/${bg.tex}.png) no-repeat 0 0/auto;image-rendering:pixelated;`;
+      entry.appendChild(ico);
+    } else {
+      // Letter placeholder
+      const ltr = document.createElement('span');
+      ltr.style.cssText = 'font-size:13px;font-weight:bold;color:#FFF;text-shadow:1px 1px 0 #000;';
+      ltr.textContent = name.charAt(0).toUpperCase();
+      entry.appendChild(ltr);
+    }
+
+    const recipeCount = groups[name].length;
+    entry.title = `${name} (${recipeCount} recipe${recipeCount!==1?'s':''})`;
+
+    entry.addEventListener('click', () => selectMachine(name));
+    entry.addEventListener('mouseenter', e => {
+      tipName.textContent = name;
+      tipId.textContent   = `${recipeCount} recipe${recipeCount!==1?'s':''}`;
+      tipMeta.textContent = '';
+      tipEl.style.display = 'block';
+      moveTip(e);
+    });
+    entry.addEventListener('mousemove', moveTip);
+    entry.addEventListener('mouseleave', hideTip);
+
+    machCol.appendChild(entry);
+  }
+
+  showPage(0);
+  view.appendChild(sec);
+}
+
+function makeNavBtn(txt) {
+  const b = document.createElement('button');
+  b.className = 'nav-btn';
+  b.textContent = txt;
+  return b;
+}
+
+// ─── BOM calculator ───────────────────────────────────────────────────────────
+function computeBOM(rootId, rootQty) {
+  const needed = {};
+  const usedRecipe = {};
+  const MAX_DEPTH = 25;
+
+  function expand(id, qty, depth, path) {
+    if (depth > MAX_DEPTH || path.includes(id)) {
+      needed[id] = (needed[id]||0) + qty; return;
+    }
+    needed[id] = (needed[id]||0) + qty;
+    const g = graphData[id];
+    const rid = g?.produced_by?.[0];
+    const rec = rid ? recipesById[rid] : null;
+    if (!rec) return;
+    usedRecipe[id] = rid;
+
+    let outQty = 1;
+    for (const s of rec.outputs) {
+      const ids=[...s.items,...s.fluids];
+      if (ids.includes(id)) { outQty=s.amount||1; break; }
+    }
+    const runs = Math.ceil(qty / outQty);
+    for (const s of rec.inputs) {
+      const ids=[...s.items,...s.fluids];
+      if (!ids.length) continue;
+      expand(ids[0], (s.amount||1)*runs, depth+1, [...path, id]);
+    }
+  }
+
+  expand(rootId, rootQty, 0, []);
+
+  const rawMats={}, crafted={};
+  for (const [id,qty] of Object.entries(needed)) {
+    if (id===rootId) continue;
+    if (usedRecipe[id]) crafted[id]={qty,recipeId:usedRecipe[id],machine:recipesById[usedRecipe[id]]?.machine||''};
+    else rawMats[id]=qty;
+  }
+  return {rawMats, crafted};
+}
+
+function renderBOMResults(container, {rawMats, crafted}) {
+  container.innerHTML='';
+  const rawKeys   = Object.keys(rawMats).sort((a,b)=>rawMats[b]-rawMats[a]);
+  const craftKeys = Object.keys(crafted).sort((a,b)=>crafted[b].qty-crafted[a].qty);
+
+  function makeRow(id, qty, via) {
+    const row = document.createElement('div'); row.className='bom-row';
+    const ico = document.createElement('div'); ico.className='bom-icon';
+    const item = itemsById[id];
+    if (item) applyIcon(ico, item.icon_key, 24);
+    const name = document.createElement('span'); name.className='bom-name';
+    name.textContent = item ? item.name : id;
+    const qtyEl = document.createElement('span'); qtyEl.className='bom-qty-label';
+    qtyEl.textContent = '×' + Math.ceil(qty).toLocaleString();
+    row.appendChild(ico); row.appendChild(name); row.appendChild(qtyEl);
+    if (via) {
+      const viaEl = document.createElement('span'); viaEl.className='bom-via';
+      viaEl.textContent = via; row.appendChild(viaEl);
+    }
+    attachItemHover(row, id);
+    row.addEventListener('click', () => selectItem(id));
+    return row;
+  }
+
+  if (rawKeys.length) {
+    const t = document.createElement('div'); t.className='bom-sec-title';
+    t.textContent=`Raw Materials (${rawKeys.length})`;
+    container.appendChild(t);
+    rawKeys.forEach(id => container.appendChild(makeRow(id, rawMats[id], '')));
+  }
+  if (craftKeys.length) {
+    const t = document.createElement('div'); t.className='bom-sec-title'; t.style.marginTop='8px';
+    t.textContent=`Crafted Intermediates (${craftKeys.length})`;
+    container.appendChild(t);
+    craftKeys.forEach(id => container.appendChild(makeRow(id, crafted[id].qty, crafted[id].machine)));
+  }
+  if (!rawKeys.length && !craftKeys.length) {
+    const e = document.createElement('div'); e.className='bom-empty'; e.textContent='No dependencies found.';
+    container.appendChild(e);
+  }
+}
+
+// ─── Keyboard shortcuts ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+  if (!hoveredItemId) return;
+  if (e.key==='r'||e.key==='R') { e.preventDefault(); selectItem(hoveredItemId, 'produced_by'); }
+  if (e.key==='u'||e.key==='U') { e.preventDefault(); selectItem(hoveredItemId, 'used_in'); }
+  if (e.key==='a'||e.key==='A') { e.preventDefault(); toggleBookmark(hoveredItemId); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape' && !['INPUT','TEXTAREA'].includes(e.target.tagName)) {
+    currentItemId=null; showGrid();
+    document.getElementById('srch').value='';
+    doSearch('');
+  }
+});
+
+// ─── Search wiring ────────────────────────────────────────────────────────────
+const srchEl = document.getElementById('srch');
+srchEl.addEventListener('input', e => {
+  clearTimeout(srchTimer);
+  srchTimer = setTimeout(() => doSearch(e.target.value), 120);
+});
+srchEl.addEventListener('keydown', e => {
+  if (e.key==='Escape') { srchEl.value=''; doSearch(''); }
+});
+
+// ─── Global notes ─────────────────────────────────────────────────────────────
+document.getElementById('btn-notes').addEventListener('click', () => {
+  document.getElementById('gnote-modal').classList.add('open');
+  document.getElementById('gnote-ta').focus();
+});
+document.getElementById('gnote-close').addEventListener('click', () => {
+  document.getElementById('gnote-modal').classList.remove('open');
+  globalNote = document.getElementById('gnote-ta').value;
+  saveLocal();
+});
+document.getElementById('gnote-modal').addEventListener('click', e => {
+  if (e.target===document.getElementById('gnote-modal')) {
+    document.getElementById('gnote-close').click();
+  }
+});
+document.getElementById('gnote-ta').addEventListener('input', e => {
+  globalNote = e.target.value; saveLocal();
+});
+
+// ─── Resize handler ───────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (!document.getElementById('grid-view').classList.contains('hidden')) renderGridPage(gridPage);
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+if (location.protocol === 'file:') {
+  document.getElementById('ld-status').innerHTML = '⚠ Must be served via HTTP — run: <code>python serve.py</code>';
+  document.getElementById('ld-status').style.color = '#C85555';
+} else {
+  loadData();
+}
+</script>
+</body>
+</html>
