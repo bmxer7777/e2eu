@@ -827,9 +827,20 @@ function findMachineIcon(machineName) {
 
 // ─── Data loading ─────────────────────────────────────────────────────────────
 async function fetchJSON(url) {
-  let res = await fetch(url);
-  if (!res.ok && url.endsWith('.gz')) res = await fetch(url.replace(/\.gz$/,''));
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
+
+  if (url.endsWith('.gz')) {
+    // Local serve.py sets Content-Encoding: gzip → browser decompresses transparently.
+    // GitHub Pages serves .gz as raw binary with no such header, so we decompress manually.
+    if (res.headers.get('Content-Encoding') === 'gzip') {
+      return res.json();
+    }
+    const ds = new DecompressionStream('gzip');
+    const piped = res.body.pipeThrough(ds);
+    const text = await new Response(piped).text();
+    return JSON.parse(text);
+  }
   return res.json();
 }
 
